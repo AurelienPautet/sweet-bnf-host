@@ -234,20 +234,33 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
       
       const imageUrl = iiifClient.getImageUrl(parsed.ark, parsed.page, { size });
       
+      let imageBuffer: Buffer;
+      try {
+        const response = await fetch(imageUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Gallica server responded with ${response.status} ${response.statusText}`);
+        }
+        
+        imageBuffer = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        throw new Error(`Failed to download page image from Gallica (URL: ${imageUrl}): ${error instanceof Error ? error.message : String(error)}. Gallica may be rate-limiting requests (HTTP 429) or blocking the server IP.`);
+      }
+
       const geminiApiKey = process.env.GEMINI_API_KEY;
       const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
       
       if (geminiApiKey) {
         try {
-          // Fetch image and convert to base64
-          const response = await fetch(imageUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch image from Gallica: ${response.statusText}`);
-          }
-          
-          const buffer = Buffer.from(await response.arrayBuffer());
-          const base64Data = buffer.toString('base64');
-          
+          const base64Data = imageBuffer.toString('base64');
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
           
           const payload = {
@@ -304,21 +317,23 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
         }
       }
       
-      // Local Tesseract.js fallback
+      // Local Tesseract.js fallback using the already downloaded imageBuffer
       try {
         const { createWorker } = await import('tesseract.js');
         const worker = await createWorker(lang);
-        const { data: { text } } = await worker.recognize(imageUrl);
-        await worker.terminate();
-        
-        return {
-          ark: parsed.ark,
-          page: parsed.page,
-          method: "tesseract-local",
-          lang,
-          text,
-          length: text.length
-        };
+        try {
+          const { data: { text } } = await worker.recognize(imageBuffer);
+          return {
+            ark: parsed.ark,
+            page: parsed.page,
+            method: "tesseract-local",
+            lang,
+            text,
+            length: text.length
+          };
+        } finally {
+          await worker.terminate();
+        }
       } catch (error) {
         throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
       }
