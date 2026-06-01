@@ -191,12 +191,12 @@ export function createGetPageTextTool(textClient: TextClient) {
 }
 
 /**
- * Get page OCR tool using Tesseract.js
+ * Get page OCR tool (hybrid: Gemini API with Tesseract.js fallback)
  */
 export function createGetPageOcrTool(iiifClient: IIIFClient) {
   return {
     name: 'get_page_ocr',
-    description: 'Perform OCR (text recognition) on a document page using Tesseract.js when the raw text is not available. Returns the extracted text.',
+    description: 'Perform OCR (text recognition) on a document page. Uses Google Gemini API if GEMINI_API_KEY is configured (highly accurate), otherwise falls back to local Tesseract.js OCR.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -210,7 +210,7 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
         },
         lang: {
           type: 'string',
-          description: 'OCR language code (e.g., "fra" for French, "eng" for English). Default: "fra"',
+          description: 'OCR language code for local fallback (e.g., "fra" for French, "eng" for English). Default: "fra"',
           default: 'fra',
         },
         size: {
@@ -234,6 +234,76 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
       
       const imageUrl = iiifClient.getImageUrl(parsed.ark, parsed.page, { size });
       
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      
+      if (geminiApiKey) {
+        try {
+          // Fetch image and convert to base64
+          const response = await fetch(imageUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image from Gallica: ${response.statusText}`);
+          }
+          
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const base64Data = buffer.toString('base64');
+          
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+          
+          const payload = {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: "Tu es un transcripteur professionnel de documents numérisés et historiques. Transcris fidèlement tout le texte visible sur cette page d'une bibliothèque numérique. Conserve les sauts de lignes et la structure générale du texte. Renvoie uniquement le texte transcrit, sans introduction, sans commentaire et sans fioritures."
+                  },
+                  {
+                    inlineData: {
+                      mimeType: "image/jpeg",
+                      data: base64Data
+                    }
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.1
+            }
+          };
+          
+          const apiResponse = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!apiResponse.ok) {
+            const errText = await apiResponse.text();
+            throw new Error(`Gemini API error (${apiResponse.status}): ${errText}`);
+          }
+          
+          const resJson = await apiResponse.json() as any;
+          const extractedText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+          
+          if (!extractedText) {
+            throw new Error("Empty response from Gemini API");
+          }
+          
+          return {
+            ark: parsed.ark,
+            page: parsed.page,
+            method: "gemini-2.5-flash",
+            text: extractedText.trim(),
+            length: extractedText.length
+          };
+        } catch (error) {
+          // Log fallback warning and fall through to local OCR
+          console.warn(`[OCR] Gemini transcription failed, falling back to local Tesseract.js:`, error instanceof Error ? error.message : error);
+        }
+      }
+      
+      // Local Tesseract.js fallback
       try {
         const { createWorker } = await import('tesseract.js');
         const worker = await createWorker(lang);
@@ -243,6 +313,7 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
         return {
           ark: parsed.ark,
           page: parsed.page,
+          method: "tesseract-local",
           lang,
           text,
           length: text.length
