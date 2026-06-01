@@ -190,3 +190,67 @@ export function createGetPageTextTool(textClient: TextClient) {
   };
 }
 
+/**
+ * Get page OCR tool using Tesseract.js
+ */
+export function createGetPageOcrTool(iiifClient: IIIFClient) {
+  return {
+    name: 'get_page_ocr',
+    description: 'Perform OCR (text recognition) on a document page using Tesseract.js when the raw text is not available. Returns the extracted text.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ark: {
+          type: 'string',
+          description: 'ARK identifier (e.g., "bpt6k123456")',
+        },
+        page: {
+          type: 'number',
+          description: 'Page number',
+        },
+        lang: {
+          type: 'string',
+          description: 'OCR language code (e.g., "fra" for French, "eng" for English). Default: "fra"',
+          default: 'fra',
+        },
+        size: {
+          type: 'string',
+          description: 'Resolution of the image to perform OCR on (e.g., "full", "1000,"). Default: "full"',
+          default: 'full',
+        }
+      },
+      required: ['ark', 'page'],
+    },
+    handler: async (args: unknown) => {
+      const parsed = z.object({
+        ark: z.string(),
+        page: z.number().int().positive(),
+        lang: z.string().optional(),
+        size: z.string().optional(),
+      }).parse(args);
+
+      const lang = parsed.lang || 'fra';
+      const size = parsed.size || 'full';
+      
+      const imageUrl = iiifClient.getImageUrl(parsed.ark, parsed.page, { size });
+      
+      try {
+        const { createWorker } = await import('tesseract.js');
+        const worker = await createWorker(lang);
+        const { data: { text } } = await worker.recognize(imageUrl);
+        await worker.terminate();
+        
+        return {
+          ark: parsed.ark,
+          page: parsed.page,
+          lang,
+          text,
+          length: text.length
+        };
+      } catch (error) {
+        throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    },
+  };
+}
+

@@ -30,6 +30,7 @@ import {
   createGetItemPagesTool,
   createGetPageImageTool,
   createGetPageTextTool,
+  createGetPageOcrTool,
 } from './tools/items.js';
 
 // Report tool
@@ -81,11 +82,12 @@ export async function createMCPServer(): Promise<Server> {
   const advancedSearch = createAdvancedSearchTool(searchApi);
   const naturalLanguageSearch = createNaturalLanguageSearchTool(searchApi);
 
-  // Register extended item tools (4 new tools)
+  // Register extended item tools (5 tools)
   const getItemDetails = createGetItemDetailsTool(itemsClient);
   const getItemPages = createGetItemPagesTool(itemsClient);
   const getPageImage = createGetPageImageTool(iiifClient);
   const getPageText = createGetPageTextTool(textClient);
+  const getPageOcr = createGetPageOcrTool(iiifClient);
 
   // Register sequential reporting tool
   const sequentialReporting = createSequentialReportingTool(reportingServer);
@@ -103,6 +105,7 @@ export async function createMCPServer(): Promise<Server> {
     getItemPages,
     getPageImage,
     getPageText,
+    getPageOcr,
     sequentialReporting,
   ];
 
