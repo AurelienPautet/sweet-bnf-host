@@ -235,6 +235,7 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
       const imageUrl = iiifClient.getImageUrl(parsed.ark, parsed.page, { size });
       
       const geminiApiKey = process.env.GEMINI_API_KEY;
+      const geminiModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
       
       if (geminiApiKey) {
         try {
@@ -247,7 +248,7 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
           const buffer = Buffer.from(await response.arrayBuffer());
           const base64Data = buffer.toString('base64');
           
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
           
           const payload = {
             contents: [
@@ -293,7 +294,7 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
           return {
             ark: parsed.ark,
             page: parsed.page,
-            method: "gemini-2.5-flash",
+            method: `gemini-api:${geminiModel}`,
             text: extractedText.trim(),
             length: extractedText.length
           };
