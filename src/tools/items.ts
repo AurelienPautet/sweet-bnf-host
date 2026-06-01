@@ -150,7 +150,7 @@ export function createGetPageImageTool(iiifClient: IIIFClient) {
 export function createGetPageTextTool(textClient: TextClient) {
   return {
     name: 'get_page_text',
-    description: 'Retrieve OCR or TEI text for a specific page when available. Returns null if text is not available.',
+    description: 'Retrieve raw native OCR or TEI text for a specific page when available. WARNING: This native OCR is often of very poor quality and contains many errors. Use get_page_ocr as the primary method for high-quality transcription. Only use get_page_text as a last resort if get_page_ocr fails, has quota issues, or returns suspicious results.',
     inputSchema: {
       type: 'object',
       properties: {
