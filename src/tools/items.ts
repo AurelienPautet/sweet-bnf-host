@@ -298,10 +298,16 @@ export function createGetPageOcrTool(iiifClient: IIIFClient) {
           }
           
           const resJson = await apiResponse.json() as any;
-          const extractedText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+          const candidate = resJson.candidates?.[0];
+          
+          if (candidate?.finishReason === 'RECITATION') {
+            throw new Error(`Gemini API blocked transcription due to 'RECITATION' finishReason (copyright protection filter triggered).`);
+          }
+          
+          const extractedText = candidate?.content?.parts?.[0]?.text;
           
           if (!extractedText) {
-            throw new Error("Empty response from Gemini API");
+            throw new Error("Empty response from Gemini API (no text returned)");
           }
           
           return {
