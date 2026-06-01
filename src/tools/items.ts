@@ -97,7 +97,7 @@ export function createGetItemPagesTool(itemsClient: ItemsClient) {
 export function createGetPageImageTool(iiifClient: IIIFClient) {
   return {
     name: 'get_page_image',
-    description: 'Get IIIF image URL for a specific page. Returns URL and metadata, not binary data.',
+    description: 'Get IIIF image URL for a specific page. Returns URL and metadata, not binary data. Note: If you need to read or analyze the text of the page, use get_page_text (if available) or get_page_ocr (if you need to perform OCR on the image).',
     inputSchema: {
       type: 'object',
       properties: {
