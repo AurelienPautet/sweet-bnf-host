@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+.env
+.env.local
+.env.production
+.env.development
+.env.staging
+npm-debug.log
+.DS_Store
