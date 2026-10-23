@@ -1,5 +1,5 @@
 # Utilisation d'une image Node.js officielle légère
-FROM node:20-slim
+FROM node:24.22.1-slim
 
 # Définition des variables d'environnement
 ENV NODE_ENV=production \
